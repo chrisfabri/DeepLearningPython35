@@ -19,6 +19,12 @@ import random
 # Third-party libraries
 import numpy as np
 
+import matplotlib.pyplot as plt
+
+# ===================
+# docs
+# eclipse - pydev interactive - https://stackoverflow.com/questions/13440956/interactive-matplotlib-through-eclipse-pydev
+
 class Network(object):
 
     def __init__(self, sizes):
@@ -34,10 +40,19 @@ class Network(object):
         ever used in computing the outputs from later layers."""
         self.num_layers = len(sizes)
         self.sizes = sizes
-        self.biases = [np.random.randn(y, 1) for y in sizes[1:]]
-        self.weights = [np.random.randn(y, x)
+        # start at size[1], skipping the input layer
+        # [784, 10, 10]-->[..,10,10]
+        self.biases = [np.random.randn(y, 1)  for y in sizes[1:]]
+        
+        # zip(sizes[:-1], size[1:])
+        # zip([784,10,..], [..,10,10]) = (784=x,10=y) (10=x,10=y) 
+        # 1 array of 10 slots, each slot holds an array of 784 slots
+        self.weights = [np.random.randn(y, x) 
                         for x, y in zip(sizes[:-1], sizes[1:])]
 
+        #make a copy of the original weights array
+        np.copyto(self.weights0,self.weights)
+        
     def feedforward(self, a):
         """Return the output of the network if ``a`` is input."""
         for b, w in zip(self.biases, self.weights):
@@ -76,19 +91,34 @@ class Network(object):
 
     def update_mini_batch(self, mini_batch, eta):
         """Update the network's weights and biases by applying
-        gradient descent using backpropagation to a single mini batch.
+        gradient descent using back-propagation to a single mini batch.
         The ``mini_batch`` is a list of tuples ``(x, y)``, and ``eta``
         is the learning rate."""
+        # create bias and weight arrays set to 0
         nabla_b = [np.zeros(b.shape) for b in self.biases]
         nabla_w = [np.zeros(w.shape) for w in self.weights]
         for x, y in mini_batch:
             delta_nabla_b, delta_nabla_w = self.backprop(x, y)
+            
+            # calculate new biases and weights as...
+            # b()=b(0) + delta_b
+            # w()=w(0) + delta_w
+            # accumulate the biases from each training data pair (x,y)
+            # accumulate the weights  from each training data pair (x,y)
             nabla_b = [nb+dnb for nb, dnb in zip(nabla_b, delta_nabla_b)]
             nabla_w = [nw+dnw for nw, dnw in zip(nabla_w, delta_nabla_w)]
+
+        #plot_multi_array(self.weights)            
+        #plot_multi_array(nabla_w)            
+        # apply the new weight to the old weight, divide by batch size, multiply by learning rate eta
+        # self.weights=(10,784), (10,10)= w(x,y) where x=rows and y=columns
+        # nabla_w     =(10,784), (10,10)
         self.weights = [w-(eta/len(mini_batch))*nw
                         for w, nw in zip(self.weights, nabla_w)]
         self.biases = [b-(eta/len(mini_batch))*nb
                        for b, nb in zip(self.biases, nabla_b)]
+
+        #plot_multi_array(self.weights)            
 
     def backprop(self, x, y):
         """Return a tuple ``(nabla_b, nabla_w)`` representing the
@@ -101,14 +131,21 @@ class Network(object):
         activation = x
         activations = [x] # list to store all the activations, layer by layer
         zs = [] # list to store all the z vectors, layer by layer
+        # x is training data; starting from the left...x is the activation input
+        # calculate the z vector for each layer, left to right
         for b, w in zip(self.biases, self.weights):
             z = np.dot(w, activation)+b
             zs.append(z)
             activation = sigmoid(z)
             activations.append(activation)
+
+        # activations[ 1-2,  2-3 ]
+        # 1-2 layer is input - hidden layer
+        # 2-3 layer is hidden to output layer
+        # 
         # backward pass
-        delta = self.cost_derivative(activations[-1], y) * \
-            sigmoid_prime(zs[-1])
+        # from right to left....
+        delta = self.cost_derivative(activations[-1], y) * sigmoid_prime(zs[-1])
         nabla_b[-1] = delta
         nabla_w[-1] = np.dot(delta, activations[-2].transpose())
         # Note that the variable l in the loop below is used a little
@@ -117,6 +154,8 @@ class Network(object):
         # second-last layer, and so on.  It's a renumbering of the
         # scheme in the book, used here to take advantage of the fact
         # that Python can use negative indices in lists.
+        # range(2,3) 2
+        # range(4)   0,1,2,3
         for l in range(2, self.num_layers):
             z = zs[-l]
             sp = sigmoid_prime(z)
@@ -139,6 +178,7 @@ class Network(object):
         \partial a for the output activations."""
         return (output_activations-y)
 
+          
 #### Miscellaneous functions
 def sigmoid(z):
     """The sigmoid function."""
@@ -147,3 +187,52 @@ def sigmoid(z):
 def sigmoid_prime(z):
     """Derivative of the sigmoid function."""
     return sigmoid(z)*(1-sigmoid(z))
+
+
+# local
+
+def array_testing():
+    # slice(start, stop, increment)
+    a=[1,2,3,4,5,6,7,8]
+    print("a[1:]  output from index=1                {}".format(a[1:]))
+    print("a[1:4] output from index(1,3)             {}".format(a[1:4]))
+    print("a[::-1] output in reverse                 {}".format(a[::-1]))
+    
+    # [:-1] ==> start from the beginning...but go to the end index - 1.
+    print("a[:-1]  output in order, ignore last item {}".format(a[:-1]))
+    
+    sizes=[784,10,10]
+    weights = [np.random.randn(y, x) 
+               for x, y in zip(sizes[:-1], sizes[1:])]
+    
+    plot_array(weights[0])
+    plot_multi_array(weights)
+
+# https://stackoverflow.com/questions/13384653/imshow-extent-and-aspect
+def plot_array(multi_dim_array_):
+    plt.imshow(multi_dim_array_,aspect='auto')
+    plt.show()    
+
+def plot_multi_array(multi_multi_dim_array_):
+    for w in multi_multi_dim_array_:
+        plt.imshow(w,aspect='auto')
+        plt.show()
+
+def plot_tester():
+    H = np.array([[1, 2, 3, 4],
+                  [5, 6, 7, 8],
+                  [9, 10, 11, 12],
+                  [13, 14, 15, 16]])
+
+    plt.imshow(H)
+    plt.show()
+            
+#array_testing()
+#exit(0)
+
+    
+import mnist_loader
+training_data, validation_data, test_data = mnist_loader.load_data_wrapper()
+import network
+net = network.Network([784, 10, 10])
+net.SGD(training_data, 30, 10, 3.0, test_data=test_data)
